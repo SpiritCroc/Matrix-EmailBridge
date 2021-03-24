@@ -1018,6 +1018,10 @@ func fetchNewMails(mClient *client.Client, account *imapAccountount) {
 	}
 
 	for msg := range messages {
+		if msg.Envelope == nil {
+			fmt.Println("Discarding mail with empty envelope")
+			continue
+		}
 		mailID := msg.Envelope.Subject + strconv.Itoa(int(msg.InternalDate.Unix()))
 		if has, err := dbContainsMail(mailID, account.roomPKID); !has && err == nil {
 			go insertEmail(mailID, account.roomPKID)
