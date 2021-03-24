@@ -140,6 +140,8 @@ func logOut(client *mautrix.Client, roomID string, leave bool) error {
 func startMatrixSync(client *mautrix.Client) {
 	fmt.Println(client.UserID)
 
+	syncStart := int64(time.Now().Unix()) * 1000
+
 	syncer := client.Syncer.(*mautrix.DefaultSyncer)
 	syncer.OnEventType(event.StateJoinRules, func(source mautrix.EventSource, evt *event.Event) {
 		host, err := getHostFromMatrixID(string(evt.Sender))
@@ -147,7 +149,11 @@ func startMatrixSync(client *mautrix.Client) {
 			listcontains := contains(viper.GetStringSlice("allowed_servers"), host)
 			if listcontains {
 				client.JoinRoom(string(evt.RoomID), "", nil)
-				client.SendText(evt.RoomID, "Hey you have invited me to a new room. Enter !login to bridge this room to a Mail account")
+				if evt.Timestamp < syncStart {
+					WriteLog(info, string("Skip join message: timestamp < start-time"))
+				} else {
+					client.SendText(evt.RoomID, "Hey you have invited me to a new room. Enter !login to bridge this room to a Mail account")
+				}
 			} else {
 				client.LeaveRoom(evt.RoomID)
 				WriteLog(info, string("Got invalid invite from "+evt.Sender+" reason: senders server not whitelisted! Adjust your config if you want to allow this host using me"))
@@ -166,6 +172,10 @@ func startMatrixSync(client *mautrix.Client) {
 
 	syncer.OnEventType(event.EventMessage, func(source mautrix.EventSource, evt *event.Event) {
 		if evt.Sender == client.UserID {
+			return
+		}
+		if evt.Timestamp < syncStart {
+			WriteLog(info, string("Skip message: timestamp < start-time"))
 			return
 		}
 		message := evt.Content.AsMessage().Body
